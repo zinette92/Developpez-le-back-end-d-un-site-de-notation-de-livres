@@ -1,5 +1,6 @@
 const Book = require("../models/Book");
 const fs = require("fs");
+const sharp = require("sharp");
 
 exports.getAllBooks = (req, res, next) => {
   Book.find()
@@ -29,6 +30,7 @@ exports.createBook = (req, res, next) => {
   const bookObject = JSON.parse(req.body.book);
   delete bookObject._id;
   delete bookObject.userId;
+
   const book = new Book({
     ...bookObject,
     userId: req.auth.userId,
@@ -113,7 +115,7 @@ exports.updateBook = (req, res, next) => {
         )
           .then(() => {
             res.status(200).json({ message: "Livre modifié" });
-            fs.unlink("images/" + previousImage, () => {
+            fs.unlink("images/" + previousImage, (error) => {
               if (error) {
                 console.log(
                   "Une erreur s'est produite lors de la suppression de l'image: ",
