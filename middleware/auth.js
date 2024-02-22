@@ -9,8 +9,11 @@ module.exports = (req, res, next) => {
       userId: userId,
     };
   } catch (error) {
-    res.status(401).json({ error });
-  }
+    if (error.name === 'JsonWebTokenError') {
+      res.status(401).json({ message: 'Votre token n\'est pas valide.' });
+    } else {
+      res.status(500).json({ error });
+    }  }
 
   next();
 };
