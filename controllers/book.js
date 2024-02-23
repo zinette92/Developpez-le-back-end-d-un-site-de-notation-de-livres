@@ -82,10 +82,7 @@ exports.createBook = (req, res, next) => {
     return res.status(400).json({ message: "Veuillez ajouter une image" });
   }
 
-  // sharp(req.file.filename)
-  //   .resize(800)
-  //   .toFormat("webp")
-  //   .toFile(req.file.path.replace(/\.([^.]*)$/, ".webp"), () => {});
+
 
   const book = new Book({
     ...bookObject,
@@ -256,6 +253,7 @@ exports.deleteBook = (req, res, next) => {
           res.status(403).json({ message: "Suppression non-autorisé" });
         } else {
           const filename = book.imageUrl.split("/images/")[1];
+
           fs.unlink(`images/${filename}`, () => {
             Book.deleteOne({ _id: req.params.id })
               .then(() => res.status(200).json({ message: "Livre supprimé" }))
