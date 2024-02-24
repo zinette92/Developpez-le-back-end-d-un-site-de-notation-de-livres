@@ -9,11 +9,12 @@ module.exports = (req, res, next) => {
       userId: userId,
     };
   } catch (error) {
-    if (error.name === 'JsonWebTokenError') {
-      return res.status(401).json({ message: 'Votre token n\'est pas valide.' });
+    if (error.name === "JsonWebTokenError") {
+      return res.status(401).json({ message: "Votre token n'est pas valide." });
     } else {
-     return res.status(500).json({ error });
-    }  }
+      return res.status(500).json({ error });
+    }
+  }
 
   next();
 };

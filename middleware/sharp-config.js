@@ -13,34 +13,24 @@ const processImage = (req, res, next) => {
     .webp({ quality: 50 })
     .toFile(req.file.path.replace(/\.([^.]*)$/, ".webp"), (error) => {
       if (error) {
-        console.log("error");
-        return next(error);
+        console.log(
+          "Une erreur est survenue lors de la modification de l'extension de l'image."
+        );
+        return next();
       }
 
       req.file.filename = req.file.filename.replace(/\.([^.]*)$/, ".webp");
-      console.log(req.file.path);
 
       fs.unlink(req.file.path, (error) => {
         if (error) {
           console.log(
-            "Une erreur s'est produite lors de la suppression de l'image d'origine: ",
+            "Une erreur est survenue lors de la suppression de l'image d'origine : ",
             error
           );
         } else {
-          console.log("L'image d'origine a bien été supprimée");
+          console.log("L'image d'origine a bien été supprimée.");
         }
       });
-      // fs.unlink(req.file.path, (er1ror) => {
-      //   if (error) {
-      //    console.log("aaaaaaaaaaaaa", req.file.filename);
-      //     console.log(
-      //       "Une erreur s'est produite lors de la suppression de l'image: ",
-      //       error
-      //     );
-      //   } else {
-      //     console.log("L'image a bien été supprimée");
-      //   }
-      // });
       next();
     });
 };
