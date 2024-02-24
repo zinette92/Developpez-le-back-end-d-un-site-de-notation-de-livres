@@ -82,10 +82,11 @@ exports.login = (req, res, next) => {
       } else {
         bcrypt
           .compare(req.body.password, user.password)
-          .then((valid) => {
-            if (!valid) {
-              return res.status(401).json({
-                message: "La combinaison identifiant/mot de passe est fausse.",
+
+          .then((password) => {
+            if (!password) {
+              res.status(401).json({
+                message: "La combinaison identifiant/mot de passe est fausse",
               });
             } else {
               res.status(200).json({
@@ -96,7 +97,7 @@ exports.login = (req, res, next) => {
               });
             }
           })
-          .catch((error) => res.status(500).json({ error }));
+          .catch((error) => res.status(400).json({ error }));
       }
     })
     .catch((error) => res.status(500).json({ error }));

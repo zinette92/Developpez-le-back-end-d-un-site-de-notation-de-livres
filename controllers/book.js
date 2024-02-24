@@ -275,6 +275,7 @@ exports.deleteBook = (req, res, next) => {
             .json({ message: "Suppression du livre non-autorisée." });
         } else {
           const filename = book.imageUrl.split("/images/")[1];
+
           fs.unlink(`images/${filename}`, () => {
             Book.deleteOne({ _id: req.params.id })
               .then(() =>
