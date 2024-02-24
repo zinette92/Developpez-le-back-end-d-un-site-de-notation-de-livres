@@ -1,13 +1,14 @@
 const Book = require("../models/Book");
 const fs = require("fs");
-const sharp = require("sharp");
+const mongoose = require("mongoose");
+const ObjectId = mongoose.Types.ObjectId;
 
 exports.getAllBooks = (req, res, next) => {
   Book.find()
     .then((books) => {
       if (books.length === 0) {
         return res.status(404).json({
-          message: "Aucun livre existant",
+          message: "Aucun livre n'a été trouvé.",
         });
       }
       res.status(200).json(books);
@@ -18,6 +19,11 @@ exports.getAllBooks = (req, res, next) => {
 exports.getOneBook = (req, res, next) => {
   Book.findOne({ _id: req.params.id })
     .then((book) => {
+      if (!book) {
+        return res.status(404).json({
+          message: "Aucun livre n'a été trouvé.",
+        });
+      }
       res.status(200).json(book);
     })
     .catch((error) => {
@@ -25,10 +31,9 @@ exports.getOneBook = (req, res, next) => {
         return res.status(404).json({
           message: "Le livre que vous recherchez n'existe pas.",
         });
-      } 
-      
+      }
+
       res.status(500).json({ error });
-     
     });
 };
 
@@ -39,7 +44,7 @@ exports.getBestRatedBooks = (req, res, next) => {
     .then((bestRatedBooks) => {
       if (bestRatedBooks.length === 0) {
         return res.status(404).json({
-          message: "Aucun livre existant",
+          message: "Aucun livre existant.",
         });
       }
       res.status(200).json(bestRatedBooks);
@@ -53,36 +58,32 @@ exports.createBook = (req, res, next) => {
   delete bookObject.userId;
 
   if (!bookObject.title) {
-    return res.status(400).json({ message: "Veuillez saisir un titre" });
+    return res.status(400).json({ message: "Veuillez saisir un titre." });
   }
 
   if (!bookObject.author) {
-    return res.status(400).json({ message: "Veuillez saisir un nom d'auteur" });
+    return res
+      .status(400)
+      .json({ message: "Veuillez saisir un nom d'auteur." });
   }
 
   if (!bookObject.year) {
     return res
       .status(400)
-      .json({ message: "Veuillez saisir une date de parution" });
+      .json({ message: "Veuillez saisir une date de parution." });
   }
 
   if (!bookObject.genre) {
-    return res.status(400).json({ message: "Veuillez saisir un genre" });
+    return res.status(400).json({ message: "Veuillez saisir un genre." });
   }
 
-  if (!bookObject.ratings[0].grade) {
-    return res.status(400).json({ message: "Veuillez saisir une note" });
-  }
-
-  if (!bookObject.averageRating) {
-    return res.status(400).json({ message: "Veuillez saisir une note" });
+  if (bookObject.ratings[0].userId != req.auth.userId) {
+    return res.status(400).json({ message: "User ID erroné." });
   }
 
   if (!req.file) {
-    return res.status(400).json({ message: "Veuillez ajouter une image" });
+    return res.status(400).json({ message: "Veuillez ajouter une image." });
   }
-
-
 
   const book = new Book({
     ...bookObject,
@@ -95,7 +96,7 @@ exports.createBook = (req, res, next) => {
   book
     .save()
     .then(() => {
-      res.status(201).json({ message: "Livre ajouté" });
+      res.status(201).json({ message: "Votre livre a bien été ajouté." });
     })
     .catch((error) => res.status(500).json({ error }));
 };
@@ -104,6 +105,16 @@ exports.rateBook = (req, res, next) => {
   const userId = req.auth.userId;
   const bookId = req.params.id;
   const grade = req.body.rating;
+
+  if (!grade) {
+    return res.status(404).json({ message: "Veuillez saisir une note." });
+  }
+
+  if (grade < 0 || grade > 5) {
+    return res
+      .status(404)
+      .json({ message: "Le note doit être comprise entre 0 et 5." });
+  }
 
   Book.findOne({ _id: bookId, "ratings.userId": userId })
     .then((book) => {
@@ -119,26 +130,40 @@ exports.rateBook = (req, res, next) => {
             if (!updatedBook) {
               return res
                 .status(404)
-                .json({ message: "Le livre n'a pas pu être récupéré" });
+                .json({
+                  message:
+                    "Une erreur est survenue lors de la notation du livre.",
+                });
             }
-            const totalRatings = updatedBook.ratings.length;
-            const sumOfRatings = updatedBook.ratings.reduce(
-              (acc, rating) => acc + rating.grade,
-              0
-            );
-            const averageRating = (sumOfRatings / totalRatings).toPrecision(2);
 
-            updatedBook.averageRating = averageRating;
+            Book.aggregate([
+              { $match: { _id: new ObjectId(`${bookId}`) } },
+              { $unwind: "$ratings" },
+              {
+                $group: {
+                  _id: "$_id",
+                  averageRating: { $avg: "$ratings.grade" },
+                },
+              },
+            ])
+              .then((result) => {
+                updatedBook.averageRating =
+                  result[0].averageRating.toPrecision(2);
 
-            updatedBook
-              .save()
-              .then(() => {
-                if (!updatedBook) {
-                  return res
-                    .status(404)
-                    .json({ message: "Le livre n'a pas pu être mis à jour" });
-                }
-                res.status(200).json(updatedBook);
+                updatedBook
+                  .save()
+                  .then((savedBook) => {
+                    if (!savedBook) {
+                      return res.status(404).json({
+                        message:
+                          "Le note moyenne du livre n'a pas pu être mise à jour.",
+                      });
+                    }
+                    res.status(200).json(savedBook);
+                  })
+                  .catch((error) => {
+                    res.status(500).json({ error });
+                  });
               })
               .catch((error) => {
                 res.status(500).json({ error });
@@ -154,7 +179,7 @@ exports.rateBook = (req, res, next) => {
         return res.status(404).json({
           message: "Le livre que vous essayer de noter n'existe pas.",
         });
-      } 
+      }
       res.status(500).json({ error });
     });
 };
@@ -171,37 +196,32 @@ exports.updateBook = (req, res, next) => {
 
   delete bookObject.userId;
 
-
   if (!bookObject.title) {
-    return res.status(400).json({ message: "Veuillez saisir un titre" });
+    return res.status(400).json({ message: "Veuillez saisir un titre." });
   }
 
   if (!bookObject.author) {
-    return res.status(400).json({ message: "Veuillez saisir un nom d'auteur" });
+    return res
+      .status(400)
+      .json({ message: "Veuillez saisir un nom d'auteur." });
   }
 
   if (!bookObject.year) {
     return res
       .status(400)
-      .json({ message: "Veuillez saisir une date de parution" });
+      .json({ message: "Veuillez saisir une date de parution." });
   }
 
   if (!bookObject.genre) {
-    return res.status(400).json({ message: "Veuillez saisir un genre" });
-  }
-
-  if (!bookObject.ratings[0].grade) {
-    return res.status(400).json({ message: "Veuillez saisir une note" });
-  }
-
-  if (!bookObject.averageRating) {
-    return res.status(400).json({ message: "Veuillez saisir une note" });
+    return res.status(400).json({ message: "Veuillez saisir un genre." });
   }
 
   Book.findOne({ _id: req.params.id })
     .then((book) => {
       if (book.userId != req.auth.userId) {
-        return res.status(403).json({ message: "Modification non-autorisé" });
+        return res
+          .status(403)
+          .json({ message: "Modification du livre non-autorisée." });
       } else {
         const previousImage = book.imageUrl.split("/images/")[1];
         Book.updateOne(
@@ -212,18 +232,18 @@ exports.updateBook = (req, res, next) => {
             if (!book) {
               return res
                 .status(404)
-                .json({ message: "Le livre n'a pas pu être mis à jour" });
+                .json({ message: "Le livre n'a pas pu être mis à jour." });
             }
-            res.status(200).json({ message: "Livre modifié" });
+            res.status(200).json({ message: "Le livre a bien été modifié." });
             if (req.file) {
               fs.unlink("images/" + previousImage, (error) => {
                 if (error) {
                   console.log(
-                    "Une erreur s'est produite lors de la suppression de l'image: ",
+                    "Une erreur est survenue lors de la suppression de l'image d'origine : ",
                     error
                   );
                 } else {
-                  console.log("L'ancienne image a bien été supprimée");
+                  console.log("L'image d'origine a bien été supprimée.");
                 }
               });
             }
@@ -231,13 +251,14 @@ exports.updateBook = (req, res, next) => {
           .catch((error) => res.status(500).json({ error }));
       }
     })
-    .catch((error) =>{ 
+    .catch((error) => {
       if (error.name === "CastError" && error.kind === "ObjectId") {
         return res.status(404).json({
-          message: "Le livre que vous essayer de modifier n'existe pas.",
+          message: "Le livre que vous essayez de modifier n'existe pas.",
         });
-      } 
-      res.status(500).json({ error })});
+      }
+      res.status(500).json({ error });
+    });
 };
 
 exports.deleteBook = (req, res, next) => {
@@ -245,18 +266,23 @@ exports.deleteBook = (req, res, next) => {
     .then((book) => {
       if (!book) {
         return res.status(404).json({
-          message:
-            "Échec de la suppression : le livre que vous essayez de supprimer n'existe pas.",
+          message: "Le livre que vous essayez de supprimer n'existe pas.",
         });
       } else {
         if (book.userId != req.auth.userId) {
-          res.status(403).json({ message: "Suppression non-autorisé" });
+          res
+            .status(403)
+            .json({ message: "Suppression du livre non-autorisée." });
         } else {
           const filename = book.imageUrl.split("/images/")[1];
 
           fs.unlink(`images/${filename}`, () => {
             Book.deleteOne({ _id: req.params.id })
-              .then(() => res.status(200).json({ message: "Livre supprimé" }))
+              .then(() =>
+                res
+                  .status(200)
+                  .json({ message: "Le livre a bien été supprimé." })
+              )
               .catch((error) => res.status(404).json({ error }));
           });
         }
@@ -265,8 +291,7 @@ exports.deleteBook = (req, res, next) => {
     .catch((error) => {
       if (error.name === "CastError" && error.kind === "ObjectId") {
         return res.status(404).json({
-          message:
-            "Échec de la suppression : le livre que vous essayez de supprimer n'existe pas.",
+          message: "Le livre que vous essayez de supprimer n'existe pas.",
         });
       } else {
         return res.status(500).json({ error });
