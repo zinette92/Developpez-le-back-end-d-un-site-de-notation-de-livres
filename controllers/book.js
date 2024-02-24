@@ -44,7 +44,7 @@ exports.getBestRatedBooks = (req, res, next) => {
     .then((bestRatedBooks) => {
       if (bestRatedBooks.length === 0) {
         return res.status(404).json({
-          message: "Aucun livre existant.",
+          message: "Aucun livre n'a été trouvé.",
         });
       }
       res.status(200).json(bestRatedBooks);
