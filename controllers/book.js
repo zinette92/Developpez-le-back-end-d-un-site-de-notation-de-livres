@@ -6,14 +6,14 @@ const ObjectId = mongoose.Types.ObjectId;
 exports.getAllBooks = (req, res, next) => {
   Book.find()
     .then((books) => {
-      if (books.length === 0) {
-        return res.status(404).json({
-          message: "Aucun livre n'a été trouvé.",
-        });
-      }
       res.status(200).json(books);
     })
-    .catch((error) => res.status(500).json({ error }));
+    .catch((error) =>
+      res.status(500).json({
+        message:
+          error.message || "An error occurred when retrieving the books.",
+      })
+    );
 };
 
 exports.getOneBook = (req, res, next) => {
@@ -21,19 +21,20 @@ exports.getOneBook = (req, res, next) => {
     .then((book) => {
       if (!book) {
         return res.status(404).json({
-          message: "Aucun livre n'a été trouvé.",
+          message: "The book has not been found.",
         });
       }
       res.status(200).json(book);
     })
     .catch((error) => {
       if (error.name === "CastError" && error.kind === "ObjectId") {
-        return res.status(404).json({
-          message: "Le livre que vous recherchez n'existe pas.",
+        return res.status(400).json({
+          message: "The book ID is invalid.",
         });
       }
-
-      res.status(500).json({ error });
+      res.status(500).json({
+        message: error.message || "An error occurred when retrieving the book.",
+      });
     });
 };
 
@@ -42,52 +43,26 @@ exports.getBestRatedBooks = (req, res, next) => {
     .sort({ averageRating: -1 })
     .limit(3)
     .then((bestRatedBooks) => {
-      if (bestRatedBooks.length === 0) {
-        return res.status(404).json({
-          message: "Aucun livre n'a été trouvé.",
-        });
-      }
       res.status(200).json(bestRatedBooks);
     })
-    .catch((error) => res.status(500).json({ error }));
+    .catch((error) =>
+      res.status(500).json({
+        message:
+          error.message || "An error occurred when retrieving the books.",
+      })
+    );
 };
 
 exports.createBook = (req, res, next) => {
   const bookObject = JSON.parse(req.body.book);
   delete bookObject._id;
   delete bookObject.userId;
-
-  if (!bookObject.title) {
-    return res.status(400).json({ message: "Veuillez saisir un titre." });
-  }
-
-  if (!bookObject.author) {
-    return res
-      .status(400)
-      .json({ message: "Veuillez saisir un nom d'auteur." });
-  }
-
-  if (!bookObject.year) {
-    return res
-      .status(400)
-      .json({ message: "Veuillez saisir une date de parution." });
-  }
-
-  if (!bookObject.genre) {
-    return res.status(400).json({ message: "Veuillez saisir un genre." });
-  }
-
-  if (bookObject.ratings[0].userId != req.auth.userId) {
-    return res.status(400).json({ message: "User ID erroné." });
-  }
-
-  if (!req.file) {
-    return res.status(400).json({ message: "Veuillez ajouter une image." });
-  }
+  delete bookObject.ratings[0].userId;
 
   const book = new Book({
     ...bookObject,
     userId: req.auth.userId,
+    ratings: [{ userId: req.auth.userId, ...bookObject.ratings[0] }],
     imageUrl: `${req.protocol}://${req.get("host")}/images/${
       req.file.filename
     }`,
@@ -96,9 +71,13 @@ exports.createBook = (req, res, next) => {
   book
     .save()
     .then(() => {
-      res.status(201).json({ message: "Votre livre a bien été ajouté." });
+      res.status(201).json({ message: "Your book has been added." });
     })
-    .catch((error) => res.status(500).json({ error }));
+    .catch((error) =>
+      res.status(500).json({
+        message: error.message || "An error occurred when creating the book.",
+      })
+    );
 };
 
 exports.rateBook = (req, res, next) => {
@@ -106,20 +85,10 @@ exports.rateBook = (req, res, next) => {
   const bookId = req.params.id;
   const grade = req.body.rating;
 
-  if (!grade) {
-    return res.status(404).json({ message: "Veuillez saisir une note." });
-  }
-
-  if (grade < 0 || grade > 5) {
-    return res
-      .status(404)
-      .json({ message: "Le note doit être comprise entre 0 et 5." });
-  }
-
   Book.findOne({ _id: bookId, "ratings.userId": userId })
     .then((book) => {
       if (book) {
-        res.status(403).json({ message: "Vous avez déjà noté ce livre." });
+        res.status(403).json({ message: "You have already rated this book." });
       } else {
         Book.findOneAndUpdate(
           { _id: bookId },
@@ -128,12 +97,9 @@ exports.rateBook = (req, res, next) => {
         )
           .then((updatedBook) => {
             if (!updatedBook) {
-              return res
-                .status(404)
-                .json({
-                  message:
-                    "Une erreur est survenue lors de la notation du livre.",
-                });
+              return res.status(400).json({
+                message: "An error has occurred in the book's rating.",
+              });
             }
 
             Book.aggregate([
@@ -154,33 +120,46 @@ exports.rateBook = (req, res, next) => {
                   .save()
                   .then((savedBook) => {
                     if (!savedBook) {
-                      return res.status(404).json({
+                      return res.status(400).json({
                         message:
-                          "Le note moyenne du livre n'a pas pu être mise à jour.",
+                          "The average rating of the book could not be updated.",
                       });
                     }
                     res.status(200).json(savedBook);
                   })
                   .catch((error) => {
-                    res.status(500).json({ error });
+                    res.status(500).json({
+                      message:
+                        error.message ||
+                        "An error occurred when retrieving the updated book.",
+                    });
                   });
               })
               .catch((error) => {
-                res.status(500).json({ error });
+                res.status(500).json({
+                  message:
+                    error.message ||
+                    "An error occurred when updating the average rating of the book.",
+                });
               });
           })
           .catch((error) => {
-            res.status(500).json({ error });
+            res.status(500).json({
+              message:
+                error.message || "An error has occurred in the book's rating.",
+            });
           });
       }
     })
     .catch((error) => {
       if (error.name === "CastError" && error.kind === "ObjectId") {
-        return res.status(404).json({
-          message: "Le livre que vous essayer de noter n'existe pas.",
+        return res.status(400).json({
+          message: "The book ID is invalid.",
         });
       }
-      res.status(500).json({ error });
+      res.status(500).json({
+        message: error.message || "An error occurred when retrieving the book.",
+      });
     });
 };
 
@@ -196,32 +175,16 @@ exports.updateBook = (req, res, next) => {
 
   delete bookObject.userId;
 
-  if (!bookObject.title) {
-    return res.status(400).json({ message: "Veuillez saisir un titre." });
-  }
-
-  if (!bookObject.author) {
-    return res
-      .status(400)
-      .json({ message: "Veuillez saisir un nom d'auteur." });
-  }
-
-  if (!bookObject.year) {
-    return res
-      .status(400)
-      .json({ message: "Veuillez saisir une date de parution." });
-  }
-
-  if (!bookObject.genre) {
-    return res.status(400).json({ message: "Veuillez saisir un genre." });
-  }
-
   Book.findOne({ _id: req.params.id })
     .then((book) => {
-      if (book.userId != req.auth.userId) {
+      if (!book) {
         return res
-          .status(403)
-          .json({ message: "Modification du livre non-autorisée." });
+          .status(404)
+          .json({ message: "The book could not be retrieved." });
+      }
+
+      if (book.userId != req.auth.userId) {
+        return res.status(403).json({ message: "Unauthorized book update." });
       } else {
         const previousImage = book.imageUrl.split("/images/")[1];
         Book.updateOne(
@@ -229,35 +192,42 @@ exports.updateBook = (req, res, next) => {
           { ...bookObject, _id: req.params.id }
         )
           .then(() => {
-            if (!book) {
-              return res
-                .status(404)
-                .json({ message: "Le livre n'a pas pu être mis à jour." });
-            }
-            res.status(200).json({ message: "Le livre a bien été modifié." });
             if (req.file) {
               fs.unlink("images/" + previousImage, (error) => {
                 if (error) {
-                  console.log(
-                    "Une erreur est survenue lors de la suppression de l'image d'origine : ",
-                    error
-                  );
+                  res.status(200).json({
+                    message:
+                      "The book was successfully updated but the old image could not be deleted.",
+                  });
                 } else {
-                  console.log("L'image d'origine a bien été supprimée.");
+                  res.status(200).json({
+                    message: "The book has been successfully updated.",
+                  });
                 }
               });
+            } else {
+              res
+                .status(200)
+                .json({ message: "The book has been successfully updated." });
             }
           })
-          .catch((error) => res.status(500).json({ error }));
+          .catch((error) =>
+            res.status(500).json({
+              message:
+                error.message || "An error occurred when updating the book.",
+            })
+          );
       }
     })
     .catch((error) => {
       if (error.name === "CastError" && error.kind === "ObjectId") {
         return res.status(404).json({
-          message: "Le livre que vous essayez de modifier n'existe pas.",
+          message: "The book ID is invalid.",
         });
       }
-      res.status(500).json({ error });
+      res.status(500).json({
+        message: error.message || "An error occurred when retrieving the book.",
+      });
     });
 };
 
@@ -266,34 +236,29 @@ exports.deleteBook = (req, res, next) => {
     .then((book) => {
       if (!book) {
         return res.status(404).json({
-          message: "Le livre que vous essayez de supprimer n'existe pas.",
+          message: "The book you are trying to delete does not exist.",
         });
       } else {
         if (book.userId != req.auth.userId) {
-          res
-            .status(403)
-            .json({ message: "Suppression du livre non-autorisée." });
+          res.status(403).json({ message: "Unauthorized book deletion." });
         } else {
           const filename = book.imageUrl.split("/images/")[1];
           fs.unlink(`images/${filename}`, () => {
             Book.deleteOne({ _id: req.params.id })
-              .then(() =>
-                res
-                  .status(200)
-                  .json({ message: "Le livre a bien été supprimé." })
-              )
-              .catch((error) => res.status(404).json({ error }));
+              .then(() => res.status(204).send())
+              .catch((error) => res.status(500).json({ error }));
           });
         }
       }
     })
     .catch((error) => {
       if (error.name === "CastError" && error.kind === "ObjectId") {
-        return res.status(404).json({
-          message: "Le livre que vous essayez de supprimer n'existe pas.",
+        return res.status(400).json({
+          message: "The book ID is invalid.",
         });
-      } else {
-        return res.status(500).json({ error });
       }
+      res.status(500).json({
+        message: error.message || "An error occurred when retrieving the book.",
+      });
     });
 };

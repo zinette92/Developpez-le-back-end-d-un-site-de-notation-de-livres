@@ -3,31 +3,12 @@ const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 
 exports.signup = (req, res, next) => {
-
-  if (!req.body.email) {
-    return res.status(400).json({ error: "Veuillez saisir une adresse email." });
-  }
-
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(req.body.email)) {
-    return res.status(400).json({ error: "Adresse email invalide." });
-  }
-
-  if (!req.body.password) {
-    return res.status(400).json({ error: "Veuillez saisir un mot de passe." });
-  }
-
-  if (req.body.password.length < 6) {
-    return res.status(400).json({ error: "Votre mot de passe doit contenir au moins 6 caractères." });
-  }
-
-  if (req.body.password.includes(' ')) {
-    return res.status(400).json({ error: "Votre mot de passe ne peut pas contenir d'espace." });
-  }
-
   User.findOne({ email: req.body.email })
     .then((existingUser) => {
       if (existingUser) {
-        return res.status(400).json({ message: "Cette adresse email est déjà utilisée." });
+        return res
+          .status(400)
+          .json({ message: "This email address is already used." });
       } else {
         bcrypt
           .hash(req.body.password, 10)
@@ -41,43 +22,40 @@ exports.signup = (req, res, next) => {
               .then(() =>
                 res
                   .status(201)
-                  .json({ message: "Votre compte a bien été créé." })
+                  .json({ message: "Your account has been created." })
               )
-              .catch((error) => res.status(400).json({ error }));
+              .catch((error) =>
+                res.status(500).json({
+                  message:
+                    error.message ||
+                    "An error occurred during account creation.",
+                })
+              );
           })
-          .catch((error) => res.status(500).json({ error }));
+          .catch((error) =>
+            res.status(500).json({
+              message:
+                error.message ||
+                "An error has occurred while hashing the password.",
+            })
+          );
       }
     })
-    .catch((error) => res.status(500).json({ error }));
+    .catch((error) =>
+      res.status(500).json({
+        message:
+          error.message ||
+          "An error occurred during the email address verification process.",
+      })
+    );
 };
 
 exports.login = (req, res, next) => {
-
-  if (!req.body.email) {
-    return res.status(400).json({ error: "Veuillez saisir une adresse email." });
-  }
-
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(req.body.email)) {
-    return res.status(400).json({ error: "Adresse email invalide." });
-  }
-
-  if (!req.body.password) {
-    return res.status(400).json({ error: "Veuillez saisir un mot de passe." });
-  }
-
-  if (req.body.password.length < 6) {
-    return res.status(400).json({ error: "Votre mot de passe doit contenir au moins 6 caractères." });
-  }
-
-  if (req.body.password.includes(' ')) {
-    return res.status(400).json({ error: "Votre mot de passe ne peut pas contenir d'espace." });
-  }
-  
   User.findOne({ email: req.body.email })
     .then((user) => {
       if (user === null) {
         return res.status(401).json({
-          message: "La combinaison identifiant/mot de passe est fausse.",
+          message: "The email address/password combination is wrong.",
         });
       } else {
         bcrypt
@@ -85,7 +63,7 @@ exports.login = (req, res, next) => {
           .then((valid) => {
             if (!valid) {
               return res.status(401).json({
-                message: "La combinaison identifiant/mot de passe est fausse.",
+                message: "The email address/password combination is wrong.",
               });
             } else {
               res.status(200).json({
@@ -96,8 +74,20 @@ exports.login = (req, res, next) => {
               });
             }
           })
-          .catch((error) => res.status(500).json({ error }));
+          .catch((error) =>
+            res.status(500).json({
+              message:
+                error.message ||
+                "An error has occurred during the login verification process.",
+            })
+          );
       }
     })
-    .catch((error) => res.status(500).json({ error }));
+    .catch((error) =>
+      res.status(500).json({
+        message:
+          error.message ||
+          "An error has occurred during the login verification process.",
+      })
+    );
 };

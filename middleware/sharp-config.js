@@ -1,7 +1,7 @@
 const sharp = require("sharp");
 const fs = require("fs");
 
-const processImage = (req, res, next) => {
+module.exports = (req, res, next) => {
   if (!req.file) {
     return next();
   }
@@ -13,26 +13,24 @@ const processImage = (req, res, next) => {
     .webp({ quality: 50 })
     .toFile(req.file.path.replace(/\.([^.]*)$/, ".webp"), (error) => {
       if (error) {
-        console.log(
-          "Une erreur est survenue lors de la modification de l'extension de l'image."
-        );
-        return next();
+        return res.status(500).json({
+          message:
+            error.message ||
+            "An error occurred while modifying the image extension.",
+        });
       }
 
       req.file.filename = req.file.filename.replace(/\.([^.]*)$/, ".webp");
 
       fs.unlink(req.file.path, (error) => {
         if (error) {
-          console.log(
-            "Une erreur est survenue lors de la suppression de l'image d'origine : ",
-            error
-          );
-        } else {
-          console.log("L'image d'origine a bien été supprimée.");
+          return res.status(500).json({
+            message:
+              error.message ||
+              "An error occurred when deleting the original image",
+          });
         }
       });
       next();
     });
 };
-
-module.exports = processImage;

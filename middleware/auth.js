@@ -10,9 +10,12 @@ module.exports = (req, res, next) => {
     };
   } catch (error) {
     if (error.name === "JsonWebTokenError") {
-      return res.status(401).json({ message: "Votre token n'est pas valide." });
+      return res.status(401).json({ message: "Your token is invalid." });
     } else {
-      return res.status(500).json({ error });
+      return res.status(500).json({
+        message:
+          error.message || "An error occurred during token verification.",
+      });
     }
   }
 
