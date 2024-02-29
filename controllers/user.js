@@ -64,6 +64,7 @@ exports.login = (req, res, next) => {
             if (!valid) {
               return res.status(401).json({
                 message: "The email address/password combination is wrong.",
+
               });
             } else {
               res.status(200).json({
@@ -81,6 +82,7 @@ exports.login = (req, res, next) => {
                 "An error has occurred during the login verification process.",
             })
           );
+
       }
     })
     .catch((error) =>
