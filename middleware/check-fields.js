@@ -15,9 +15,14 @@ module.exports = (fields) => {
         return res.status(400).json({ message: "Please enter a password." });
       }
 
-      if (req.body.password.length < 6) {
+      if (
+        !/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{12,}$/.test(
+          req.body.password
+        )
+      ) {
         return res.status(400).json({
-          message: "Your password must contain at least 6 characters.",
+          message:
+            "Your password must contain at least 12 characters, including: 1 uppercase letter, 1 lowercase letter, 1 number and 1 special character.",
         });
       }
 
@@ -51,8 +56,7 @@ module.exports = (fields) => {
         return res.status(400).json({ message: "Please enter a genre." });
       }
 
-      if (bookObject.ratings[0].grade === undefined) {       
-
+      if (bookObject.ratings[0].grade === undefined) {
         return res.status(400).json({
           message: "Please rate the book.",
         });
