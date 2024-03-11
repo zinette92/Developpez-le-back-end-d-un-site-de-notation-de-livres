@@ -1,9 +1,11 @@
 const express = require("express");
+const helmet = require("helmet");
 const mongoose = require("./models/index");
 const routes = require("./routes/index");
 const path = require("path");
 const app = express();
 
+app.use(helmet());
 app.use(express.json());
 
 app.use((req, res, next) => {
